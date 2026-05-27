@@ -3,6 +3,7 @@ import Image from "next/image";
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Character, CharacterListResponse } from "@/types/character";
+import { statusColor } from "@/lib/character-helpers";
 
 const TEN_DAYS_IN_SECONDS = 60 * 60 * 24 * 10;
 
@@ -71,12 +72,6 @@ export async function generateMetadata({
     return { title: "Personaje no encontrado - Rick & Morty Wiki" };
   }
 }
-
-const statusColor: Record<string, string> = {
-  Alive: "bg-emerald-500",
-  Dead: "bg-red-500",
-  unknown: "bg-gray-500",
-};
 
 export default async function CharacterDetailPage({
   params,

@@ -1,77 +1,108 @@
-# Lab 10 — Desarrollo de Aplicaciones Web Avanzado
+# Lab 10 — Next.js Routing (Pokédex + Rick & Morty Wiki)
 
-**Tema:** Enrutamiento y páginas en Next.js (App Router) — Páginas estáticas, dinámicas, SSG, ISR y CSR.
-**Alumno:** David Carhuaz · 5° C — Sección C-D
+> **Tema:** Enrutamiento y páginas en Next.js (App Router) — Páginas estáticas, dinámicas, SSG, ISR y CSR.
+> **Alumno:** David Carhuaz · 5° C — Sección C-D
+> **Docente:** Ricardo Coello Palomino
 
-Proyecto único con dos rutas:
+---
 
-- `/pokemon` → **Ejercicio 1 guiado**: Pokédex con 151 pokémon (PokeAPI).
-- `/characters` → **Tarea evaluada**: Wiki de Rick & Morty (rickandmortyapi.com).
+## 🚀 Cómo correr localmente
 
-## Stack
+### Requisitos previos
+- **Node.js 18+** (recomendado 20+)
+- **npm** (viene con Node.js)
 
-- Next.js **16.2.6** + App Router + Turbopack
-- React 19, TypeScript, Tailwind CSS 4
-- `react-icons` 5.x
+### Pasos
 
-## Estrategias de renderizado y justificación
+1. **Clonar el repositorio**
+   ```bash
+   git clone https://github.com/Danoviel/Lab10Morty.git
+   cd Lab10Morty/practica
+   ```
 
-| Ruta | Estrategia | Implementación | Por qué |
-|---|---|---|---|
-| `/pokemon` | **SSG + ISR (24 h)** | `fetch(..., { next: { revalidate: 86400 } })` | La lista de los 151 pokémon originales cambia muy raramente. Prerenderizamos al build y revalidamos cada 24 h por seguridad. Carga instantánea para el usuario, casi sin tráfico hacia PokéAPI. |
-| `/pokemon/[name]` | **SSG + ISR (24 h)** | `generateStaticParams` con 151 IDs + `revalidate: 86400` | Conjunto finito y conocido de personajes. Pregenerar los 151 al build da carga inmediata y SEO estático. ISR cubre cambios futuros (por ejemplo si la API corrige tipos/stats). |
-| `/characters` (listado) | **SSG forzado** | `fetch(..., { cache: "force-cache" })` | Listado completo de 826 personajes — dataset cerrado, sin paginación visible al usuario, ideal para prerender total al build. `force-cache` es lo que pide explícitamente la consigna. |
-| `/characters/[id]` (detalle) | **SSG (parcial) + ISR (10 días)** | `generateStaticParams` (20 IDs) + `revalidate: 60*60*24*10` + `dynamicParams: true` | La API impone rate-limit (HTTP 429) al pedir 826 detalles en paralelo durante el build. Pregeneramos los primeros 20 y los demás se generan on-demand al ser visitados por primera vez (ISR). Una vez generados, se cachean 10 días. Resultado: build rápido + páginas estáticas para el usuario. |
-| `/characters/search` | **CSR** | `"use client"` + `useState` + `useEffect` (debounce 350 ms, `AbortController`) | La búsqueda depende de inputs del usuario en tiempo real — no tiene sentido prerenderizar combinaciones de `name`/`status`/`type`/`gender`. CSR + `cache: "no-store"` garantiza resultados frescos. |
+2. **Instalar dependencias**
+   ```bash
+   npm install
+   ```
 
-### Convenciones de archivo usadas
+3. **Modo desarrollo** (recarga en caliente, sin caché real de fetch)
+   ```bash
+   npm run dev
+   ```
+   Abre: [http://localhost:3000](http://localhost:3000)
 
-- `layout.tsx` (raíz, `/pokemon`, `/characters`) — UI común y navegación.
-- `error.tsx` (`/pokemon`, `/characters`) — boundary `"use client"` con botón **Reintentar** (`reset()`).
-- `not-found.tsx` (`/pokemon`, `/characters`) — disparado por `notFound()` cuando la API devuelve 404.
-- `generateMetadata` — títulos y descripciones dinámicas por personaje/pokémon.
+4. **Build de producción** (donde se ven SSG e ISR funcionando)
+   ```bash
+   npm run build
+   ```
 
-## Comandos
+5. **Servir el build** (servidor de producción local)
+   ```bash
+   npm start
+   ```
+   Abre: [http://localhost:3000](http://localhost:3000)
 
-```bash
-npm run dev      # http://localhost:3000  (Turbopack, sin caché de fetch)
-npm run build    # build de producción con prerender
-npm start        # sirve el build de producción
+---
+
+## 🎯 Qué hace el proyecto
+
+App Next.js con dos secciones:
+
+- **`/pokemon`** → Pokédex guiada. 151 pokémon (PokeAPI).
+- **`/characters`** → Wiki Rick & Morty. 826 personajes, búsqueda CSR y detalles dinámicos.
+
+---
+
+## 🛠 Stack
+
+- **Next.js 16.2.6** + App Router + Turbopack
+- **React 19.2** + TypeScript 5
+- **Tailwind CSS 4**
+- **react-icons 5.x**
+
+---
+
+## 📁 Estructura clave
+
+```
+src/app/
+├── page.tsx                    ← Home
+├── pokemon/
+│   ├── page.tsx                ← Listado 151 (SSG + ISR 24h)
+│   ├── [name]/page.tsx         ← Detalle SSG 151 paths + ISR
+│   ├── error.tsx               ← Error boundary
+│   └── not-found.tsx           ← 404 custom
+└── characters/
+    ├── page.tsx                ← Listado SSG (force-cache)
+    ├── [id]/page.tsx           ← Detalle SSG 20 paths + ISR 10d
+    ├── search/page.tsx         ← Búsqueda CSR
+    ├── error.tsx
+    └── not-found.tsx
 ```
 
-## Estructura
+---
 
-```
-src/
-├── app/
-│   ├── layout.tsx              # raíz
-│   ├── page.tsx                # home con cards
-│   ├── pokemon/
-│   │   ├── layout.tsx
-│   │   ├── page.tsx            # SSG + ISR 24h
-│   │   ├── error.tsx
-│   │   ├── not-found.tsx
-│   │   └── [name]/page.tsx     # SSG 151 paths + ISR 24h
-│   └── characters/
-│       ├── layout.tsx
-│       ├── page.tsx            # SSG force-cache
-│       ├── error.tsx
-│       ├── not-found.tsx
-│       ├── search/page.tsx     # CSR (useState/useEffect)
-│       └── [id]/page.tsx       # SSG 20 paths + ISR 10d + dynamicParams
-└── types/
-    ├── pokemon.ts
-    └── character.ts
-```
+## 🧠 Estrategias de renderizado
 
-## Deploy
+| Ruta | Estrategia | Justificación |
+|---|---|---|
+| `/pokemon` | SSG + ISR (24h) | Dataset cerrado. Carga instantánea + revalidación ocasional. |
+| `/pokemon/[name]` | SSG (151 paths) + ISR (24h) | Conjunto finito conocido al build-time. |
+| `/characters` | SSG con `force-cache` | Consigna pide SSG. 826 personajes se prerenderizan una vez. |
+| `/characters/[id]` | SSG parcial (20) + ISR (10d) | Rate-limit de API. Build rápido + on-demand para el resto. |
+| `/characters/search` | CSR | Inputs del usuario en tiempo real. Infinitas combinaciones. |
 
-Desplegado en Vercel: <!-- pegar URL aquí cuando esté listo -->
+---
 
-## Conclusiones
+## 🧪 Verificaciones
 
-1. _(completar)_
-2. _(completar)_
-3. _(completar)_
-4. _(completar)_
-5. _(completar)_
+- ✅ `npx tsc --noEmit` → sin errores de TypeScript.
+- ✅ `npm run build` → 178 páginas prerenderizadas.
+- ✅ `npm start` → todas las rutas responden 200.
+- ✅ 404 custom funcionan en `/pokemon/noexiste` y `/characters/9999`.
+
+---
+
+## 🔗 Repositorio
+
+https://github.com/Danoviel/Lab10Morty

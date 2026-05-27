@@ -13,12 +13,9 @@ export default function Error({ error, reset }: ErrorProps) {
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-black to-purple-900 text-white p-8">
       <IoWarningOutline size={100} className="text-yellow-400 mb-6" />
       <h1 className="text-5xl font-bold mb-4">Ocurrió un error</h1>
-      <p className="text-xl text-center mb-2">
+      <p className="text-xl text-center mb-8">
         Hubo un problema al cargar los pokémons.
       </p>
-      {error?.message && (
-        <p className="text-sm text-white/60 mb-8">{error.message}</p>
-      )}
 
       <div className="flex gap-4">
         <button
