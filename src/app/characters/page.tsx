@@ -2,71 +2,49 @@ import { IoList } from "react-icons/io5";
 import { Character, CharacterListResponse } from "@/types/character";
 import { CharacterCard } from "@/components/characters/CharacterCard";
 
-const ONE_DAY_IN_SECONDS = 60 * 60 * 24;
+// SSG: Cargamos las primeras 3 páginas (60 personajes) para prerenderizado rápido.
+// La API de Rick and Morty tiene rate-limit (HTTP 429) y Vercel Hobby tiene
+// timeout de 60s por página durante el build. Con 42 páginas no es posible
+// descargar todos los 826 personajes en ese tiempo.
+// Los personajes restantes están disponibles en /characters/search (CSR).
+async function getCharacters(): Promise<Character[]> {
+  const pagesToFetch = 3;
+  const collected: Character[] = [];
 
-async function fetchWithRetry(
-  url: string,
-  retries = 3,
-  baseDelay = 1000,
-): Promise<Response> {
-  let res = await fetch(url, { next: { revalidate: ONE_DAY_IN_SECONDS } });
-  for (let attempt = 1; attempt <= retries && res.status === 429; attempt++) {
-    const wait = baseDelay * attempt;
-    await new Promise((r) => setTimeout(r, wait));
-    res = await fetch(url, { next: { revalidate: ONE_DAY_IN_SECONDS } });
-  }
-  return res;
-}
-
-async function fetchPage(page: number): Promise<Character[]> {
-  const res = await fetchWithRetry(
-    `https://rickandmortyapi.com/api/character?page=${page}`,
-  );
-  if (!res.ok) throw new Error(`Error ${res.status} al cargar página ${page}`);
-  const data: CharacterListResponse = await res.json();
-  return data.results;
-}
-
-// ISR: La página se genera estáticamente en el primer request y se revalida cada 24h.
-// En Vercel, descargar 42 páginas durante el build excede el timeout de 60s,
-// por lo que usamos ISR: el HTML se genera una vez en el edge y se cachea.
-async function getAllCharacters(): Promise<Character[]> {
-  const firstRes = await fetchWithRetry(
-    "https://rickandmortyapi.com/api/character?page=1",
-  );
-  if (!firstRes.ok) throw new Error("Error al cargar personajes");
-  const firstData: CharacterListResponse = await firstRes.json();
-
-  const totalPages = firstData.info.pages;
-  const collected: Character[] = [...firstData.results];
-
-  // Secuencial con delay moderado
-  for (let page = 2; page <= totalPages; page++) {
-    const pageData = await fetchPage(page);
-    collected.push(...pageData);
-    if (page < totalPages) {
-      await new Promise((r) => setTimeout(r, 200));
-    }
+  for (let page = 1; page <= pagesToFetch; page++) {
+    const res = await fetch(
+      `https://rickandmortyapi.com/api/character?page=${page}`,
+      { cache: "force-cache" },
+    );
+    if (!res.ok) throw new Error(`Error ${res.status} al cargar página ${page}`);
+    const data: CharacterListResponse = await res.json();
+    collected.push(...data.results);
   }
 
   return collected;
 }
 
-export const revalidate = ONE_DAY_IN_SECONDS;
-
 export default async function CharactersListPage() {
-  const characters = await getAllCharacters();
+  const characters = await getCharacters();
 
   return (
     <div className="p-6 sm:p-8">
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl sm:text-4xl font-bold mb-2 inline-flex items-center gap-3">
           <IoList size={36} className="text-emerald-400" />
-          Personajes (ISR)
+          Personajes (SSG)
         </h1>
         <p className="text-emerald-300/70 mb-8">
-          Total: {characters.length} personajes — generados estáticamente con
-          <code className="bg-black/40 px-1 rounded">revalidate: {ONE_DAY_IN_SECONDS}s</code>.
+          Mostrando {characters.length} personajes — generados estáticamente al
+          build con{" "}
+          <code className="bg-black/40 px-1 rounded">cache: &quot;force-cache&quot;</code>.
+          Busca todos los personajes en{" "}
+          <a
+            href="/characters/search"
+            className="underline text-emerald-400 hover:text-emerald-300"
+          >
+            /characters/search
+          </a>
         </p>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
