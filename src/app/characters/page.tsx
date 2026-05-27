@@ -2,10 +2,23 @@ import { IoList } from "react-icons/io5";
 import { Character, CharacterListResponse } from "@/types/character";
 import { CharacterCard } from "@/components/characters/CharacterCard";
 
+async function fetchWithRetry(
+  url: string,
+  retries = 3,
+  baseDelay = 500,
+): Promise<Response> {
+  let res = await fetch(url, { cache: "force-cache" });
+  for (let attempt = 1; attempt <= retries && res.status === 429; attempt++) {
+    const wait = baseDelay * 2 ** attempt;
+    await new Promise((r) => setTimeout(r, wait));
+    res = await fetch(url, { cache: "force-cache" });
+  }
+  return res;
+}
+
 async function fetchPage(page: number): Promise<Character[]> {
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `https://rickandmortyapi.com/api/character?page=${page}`,
-    { cache: "force-cache" },
   );
   if (!res.ok) throw new Error(`Error ${res.status} al cargar página ${page}`);
   const data: CharacterListResponse = await res.json();
@@ -13,26 +26,24 @@ async function fetchPage(page: number): Promise<Character[]> {
 }
 
 // SSG: cache forzado en la petición — el listado completo se prerenderiza al build.
+// En Vercel usamos secuencial + delay para evitar rate-limit (429) de la API.
 async function getAllCharacters(): Promise<Character[]> {
-  // Primero pido la página 1 para saber cuántas hay en total.
-  const firstRes = await fetch(
+  const firstRes = await fetchWithRetry(
     "https://rickandmortyapi.com/api/character?page=1",
-    { cache: "force-cache" },
   );
   if (!firstRes.ok) throw new Error("Error al cargar personajes");
   const firstData: CharacterListResponse = await firstRes.json();
 
-  // Resto en lotes para no saturar la API.
   const totalPages = firstData.info.pages;
-  const batchSize = 5;
   const collected: Character[] = [...firstData.results];
 
-  for (let start = 2; start <= totalPages; start += batchSize) {
-    const end = Math.min(start + batchSize - 1, totalPages);
-    const batch = await Promise.all(
-      Array.from({ length: end - start + 1 }, (_, i) => fetchPage(start + i)),
-    );
-    collected.push(...batch.flat());
+  // Secuencial con delay para evitar 429 en Vercel build
+  for (let page = 2; page <= totalPages; page++) {
+    const pageData = await fetchPage(page);
+    collected.push(...pageData);
+    if (page < totalPages) {
+      await new Promise((r) => setTimeout(r, 300));
+    }
   }
 
   return collected;
