@@ -4,12 +4,13 @@ import { CharacterCard } from "@/components/characters/CharacterCard";
 
 async function fetchWithRetry(
   url: string,
-  retries = 3,
-  baseDelay = 500,
+  retries = 5,
+  baseDelay = 2000,
 ): Promise<Response> {
   let res = await fetch(url, { cache: "force-cache" });
   for (let attempt = 1; attempt <= retries && res.status === 429; attempt++) {
-    const wait = baseDelay * 2 ** attempt;
+    const wait = baseDelay * attempt;
+    console.log(`[Build] 429 en ${url}, reintentando en ${wait}ms (intento ${attempt}/${retries})`);
     await new Promise((r) => setTimeout(r, wait));
     res = await fetch(url, { cache: "force-cache" });
   }
@@ -42,7 +43,7 @@ async function getAllCharacters(): Promise<Character[]> {
     const pageData = await fetchPage(page);
     collected.push(...pageData);
     if (page < totalPages) {
-      await new Promise((r) => setTimeout(r, 300));
+      await new Promise((r) => setTimeout(r, 1500));
     }
   }
 
